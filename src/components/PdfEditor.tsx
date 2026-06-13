@@ -6,10 +6,11 @@ import {
   Eraser,
   Highlighter,
   Undo2,
+  Trash2,
   Loader2,
   Download,
-  ChevronLeft,
-  ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Info,
 } from "lucide-react";
 
@@ -212,6 +213,25 @@ export function PdfEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfDoc, pageCount]);
 
+  // ── Escape: cancel in-progress draw or close text popup ───────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (textPopup) {
+        setTextPopup(null);
+        setTextVal("");
+        return;
+      }
+      if (pointerDown && tool === "draw") {
+        setDrawPoints([]);
+        setPointerDown(false);
+        setDragStart(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [textPopup, pointerDown, tool]);
+
   // ── SVG coordinate → normalised fraction ──────────────────────────────────
   const toNorm = useCallback(
     (e: React.PointerEvent<SVGSVGElement>): { x: number; y: number } | null => {
@@ -237,6 +257,7 @@ export function PdfEditor({
     (e.target as Element).setPointerCapture(e.pointerId);
 
     if (tool === "text") {
+      if (textPopup && textVal.trim()) confirmText();
       setTextPopup({ nx: pt.x, ny: pt.y });
       setTextVal("");
       setTimeout(() => textInputRef.current?.focus(), 50);
@@ -406,15 +427,15 @@ export function PdfEditor({
         {/* Font size — text only */}
         {tool === "text" && (
           <div className="flex items-center gap-1.5">
-            <span className={`text-xs ${darkMode ? "text-slate-500" : "text-slate-400"}`}>Size</span>
+            <span className={`text-xs ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+              {fontSize}px
+            </span>
             <input
-              type="number"
+              type="range"
               value={fontSize}
-              onChange={e => setFontSize(Math.max(6, Math.min(72, Number(e.target.value) || 14)))}
-              min={6} max={72}
-              className={`w-14 rounded-lg border px-2 py-1 text-xs outline-none ${
-                darkMode ? "border-slate-700 bg-slate-800 text-slate-200" : "border-slate-200 bg-white text-slate-800"
-              }`}
+              onChange={e => setFontSize(Number(e.target.value))}
+              min={6} max={72} step={2}
+              className="w-20"
             />
           </div>
         )}
@@ -422,15 +443,15 @@ export function PdfEditor({
         {/* Stroke width — draw / rect */}
         {(tool === "draw" || tool === "rect") && (
           <div className="flex items-center gap-1.5">
-            <span className={`text-xs ${darkMode ? "text-slate-500" : "text-slate-400"}`}>Width</span>
+            <span className={`text-xs ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+              {strokeWidth}px
+            </span>
             <input
-              type="number"
+              type="range"
               value={strokeWidth}
-              onChange={e => setStrokeWidth(Math.max(1, Math.min(20, Number(e.target.value) || 2)))}
-              min={1} max={20}
-              className={`w-14 rounded-lg border px-2 py-1 text-xs outline-none ${
-                darkMode ? "border-slate-700 bg-slate-800 text-slate-200" : "border-slate-200 bg-white text-slate-800"
-              }`}
+              onChange={e => setStrokeWidth(Number(e.target.value))}
+              min={1} max={20} step={1}
+              className="w-20"
             />
           </div>
         )}
@@ -457,12 +478,24 @@ export function PdfEditor({
             type="button"
             onClick={handleUndo}
             disabled={pageAnnsCount === 0}
-            title="Undo last annotation on this page"
+            title={`Undo last annotation on this page (${pageAnnsCount} on page ${curPage + 1})`}
             className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-30 ${
               darkMode ? "text-slate-400 hover:bg-slate-800 hover:text-white" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
             }`}
           >
             <Undo2 size={13} />Undo
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAnnotations(prev => prev.filter(a => a.page !== curPage))}
+            disabled={pageAnnsCount === 0}
+            title={`Clear all ${pageAnnsCount} annotation${pageAnnsCount !== 1 ? "s" : ""} on this page`}
+            className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-30 ${
+              darkMode ? "text-slate-400 hover:bg-slate-800 hover:text-rose-400" : "text-slate-500 hover:bg-slate-100 hover:text-rose-600"
+            }`}
+          >
+            <Trash2 size={13} />Clear
           </button>
 
           <button
@@ -482,44 +515,87 @@ export function PdfEditor({
 
         {/* Thumbnail sidebar */}
         <div
-          className={`flex w-24 shrink-0 flex-col gap-1.5 overflow-y-auto rounded-xl border p-2 ${
+          className={`flex w-24 shrink-0 flex-col gap-1.5 rounded-xl border p-2 ${
             darkMode ? "border-slate-800 bg-slate-900/50" : "border-slate-200 bg-white"
           }`}
           style={{ maxHeight: "68vh" }}
         >
-          {Array.from({ length: pageCount }, (_, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => setCurPage(i)}
-              className={`flex flex-col items-center gap-1 rounded-lg p-1 transition ${
-                curPage === i
-                  ? darkMode
-                    ? "bg-orange-900/40 ring-1 ring-orange-500"
-                    : "bg-orange-50 ring-1 ring-orange-400"
-                  : darkMode
-                  ? "hover:bg-slate-800"
-                  : "hover:bg-slate-50"
-              }`}
-            >
-              {thumbUrls.has(i) ? (
-                <img src={thumbUrls.get(i)} alt={`Page ${i + 1}`} className="w-full rounded border border-slate-200/30" draggable={false} />
-              ) : (
-                <div className={`flex aspect-[3/4] w-full items-center justify-center rounded border ${
-                  darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-slate-100"
-                }`}>
-                  <Loader2 size={12} className="animate-spin text-slate-500" />
-                </div>
-              )}
-              <span className={`text-[10px] font-medium ${
-                curPage === i
-                  ? darkMode ? "text-orange-400" : "text-orange-600"
-                  : darkMode ? "text-slate-500" : "text-slate-400"
-              }`}>
-                {i + 1}
+          {/* Page navigation header */}
+          {pageCount > 1 && (
+            <div className="flex items-center justify-between gap-0.5">
+              <button
+                type="button"
+                onClick={() => setCurPage(p => Math.max(0, p - 1))}
+                disabled={curPage === 0}
+                title="Previous page"
+                className={`rounded p-0.5 transition disabled:opacity-25 ${
+                  darkMode ? "text-slate-500 hover:bg-slate-800 hover:text-slate-200" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                }`}
+              >
+                <ChevronUp size={13} />
+              </button>
+              <span className={`text-[10px] font-medium tabular-nums ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+                {curPage + 1}/{pageCount}
               </span>
-            </button>
-          ))}
+              <button
+                type="button"
+                onClick={() => setCurPage(p => Math.min(pageCount - 1, p + 1))}
+                disabled={curPage === pageCount - 1}
+                title="Next page"
+                className={`rounded p-0.5 transition disabled:opacity-25 ${
+                  darkMode ? "text-slate-500 hover:bg-slate-800 hover:text-slate-200" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                }`}
+              >
+                <ChevronDown size={13} />
+              </button>
+            </div>
+          )}
+
+          {/* Scrollable thumbnails */}
+          <div className="flex flex-col gap-1.5 overflow-y-auto">
+            {Array.from({ length: pageCount }, (_, i) => {
+              const annCount = annotations.filter(a => a.page === i).length;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setCurPage(i)}
+                  className={`relative flex flex-col items-center gap-1 rounded-lg p-1 transition ${
+                    curPage === i
+                      ? darkMode
+                        ? "bg-orange-900/40 ring-1 ring-orange-500"
+                        : "bg-orange-50 ring-1 ring-orange-400"
+                      : darkMode
+                      ? "hover:bg-slate-800"
+                      : "hover:bg-slate-50"
+                  }`}
+                >
+                  {thumbUrls.has(i) ? (
+                    <img src={thumbUrls.get(i)} alt={`Page ${i + 1}`} className="w-full rounded border border-slate-200/30" draggable={false} />
+                  ) : (
+                    <div className={`flex aspect-[3/4] w-full items-center justify-center rounded border ${
+                      darkMode ? "border-slate-700 bg-slate-800" : "border-slate-200 bg-slate-100"
+                    }`}>
+                      <Loader2 size={12} className="animate-spin text-slate-500" />
+                    </div>
+                  )}
+                  {/* Annotation count badge */}
+                  {annCount > 0 && (
+                    <span className="absolute right-1 top-1 flex min-w-[15px] items-center justify-center rounded-full bg-orange-500 px-1 text-[8px] font-bold text-white">
+                      {annCount}
+                    </span>
+                  )}
+                  <span className={`text-[10px] font-medium ${
+                    curPage === i
+                      ? darkMode ? "text-orange-400" : "text-orange-600"
+                      : darkMode ? "text-slate-500" : "text-slate-400"
+                  }`}>
+                    {i + 1}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Main viewer */}
@@ -590,7 +666,10 @@ export function PdfEditor({
               {textPopup && (
                 <div
                   className="absolute z-20 -translate-y-1/2"
-                  style={{ left: `${textPopup.nx * 100}%`, top: `${textPopup.ny * 100}%` }}
+                  style={{
+                    left: `${Math.min(textPopup.nx * 100, 62)}%`,
+                    top: `${Math.max(3, Math.min(textPopup.ny * 100, 94))}%`,
+                  }}
                 >
                   <div className={`flex overflow-hidden rounded-xl border shadow-xl ${
                     darkMode ? "border-slate-700 bg-slate-900" : "border-slate-300 bg-white"
@@ -631,35 +710,6 @@ export function PdfEditor({
           )}
         </div>
       </div>
-
-      {/* ── Page navigation ────────────────────────────────────────────────── */}
-      {pageCount > 1 && (
-        <div className="flex items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={() => setCurPage(p => Math.max(0, p - 1))}
-            disabled={curPage === 0}
-            className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-30 ${
-              darkMode ? "border-slate-700 text-slate-400 hover:bg-slate-800" : "border-slate-200 text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            <ChevronLeft size={14} />Prev
-          </button>
-          <span className={`text-sm font-medium ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
-            Page {curPage + 1} / {pageCount}
-          </span>
-          <button
-            type="button"
-            onClick={() => setCurPage(p => Math.min(pageCount - 1, p + 1))}
-            disabled={curPage === pageCount - 1}
-            className={`flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-30 ${
-              darkMode ? "border-slate-700 text-slate-400 hover:bg-slate-800" : "border-slate-200 text-slate-500 hover:bg-slate-100"
-            }`}
-          >
-            Next<ChevronRight size={14} />
-          </button>
-        </div>
-      )}
 
       {/* ── Note ───────────────────────────────────────────────────────────── */}
       <p className={`flex items-center gap-1.5 text-xs ${darkMode ? "text-slate-600" : "text-slate-400"}`}>

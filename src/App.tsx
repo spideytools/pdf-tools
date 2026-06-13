@@ -337,7 +337,7 @@ function App() {
   const showStatus = (msg: string) => {
     setStatus(msg);
     if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
-    statusTimerRef.current = setTimeout(() => setStatus(""), 5000);
+    statusTimerRef.current = setTimeout(() => setStatus(""), 8000);
   };
 
   const loadPageCountInto = useCallback(
@@ -637,11 +637,16 @@ function App() {
             <button
               key={id}
               type="button"
-              onClick={() => { setToolMode(id); setStatus(""); setIsProcessing(false); }}
+              onClick={() => { if (!isProcessing) { setToolMode(id); setStatus(""); } }}
               aria-pressed={toolMode === id}
+              disabled={isProcessing && toolMode !== id}
               className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold transition ${
                 toolMode === id
                   ? "bg-orange-500 text-white shadow-sm"
+                  : isProcessing
+                  ? darkMode ? "cursor-not-allowed text-slate-700" : "cursor-not-allowed text-slate-300"
+                  : !globalFile && id !== "merge"
+                  ? darkMode ? "text-slate-600 hover:text-slate-500" : "text-slate-300 hover:text-slate-400"
                   : darkMode
                   ? "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
                   : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"
@@ -956,7 +961,29 @@ function App() {
                 <div className="lg:col-span-5"><EmptyState darkMode={darkMode} /></div>
               ) : (
                 <>
-                  <div className="lg:col-span-3">
+                  {/* Action panel — first on mobile, right column on desktop */}
+                  <div className="order-1 lg:order-2 lg:col-span-2">
+                    <div className={`rounded-xl border p-4 ${darkMode ? "border-slate-800 bg-slate-900/50" : "border-slate-200 bg-white"}`}>
+                      <h2 className={`mb-3 text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+                        Compress
+                      </h2>
+                      <p className={`mb-3 text-xs leading-relaxed ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+                        Re-serializes with object streams to remove redundant data and reduce file size.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleCompress}
+                        disabled={toolDisabled}
+                        className={`w-full ${btnBase} ${btnDisabled} justify-center bg-orange-600 hover:bg-orange-500 py-2.5`}
+                      >
+                        {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Minimize2 size={14} />}
+                        {isProcessing ? "Compressing…" : "Compress PDF"}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Result panel — second on mobile (below button), left column on desktop */}
+                  <div className="order-2 lg:order-1 lg:col-span-3">
                     {compressResult && (
                       <div className={`rounded-xl border p-4 ${darkMode ? "border-slate-800 bg-slate-900/50" : "border-slate-200 bg-white"}`}>
                         <h2 className={`mb-3 text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
@@ -987,37 +1014,15 @@ function App() {
                             </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="lg:col-span-2">
-                    <div className={`rounded-xl border p-4 ${darkMode ? "border-slate-800 bg-slate-900/50" : "border-slate-200 bg-white"}`}>
-                      <h2 className={`mb-3 text-xs font-semibold uppercase tracking-wider ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
-                        Compress
-                      </h2>
-                      <p className={`mb-3 text-xs leading-relaxed ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
-                        Re-serializes with object streams to remove redundant data and reduce file size.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handleCompress}
-                        disabled={toolDisabled}
-                        className={`w-full ${btnBase} ${btnDisabled} justify-center bg-orange-600 hover:bg-orange-500 py-2.5`}
-                      >
-                        {isProcessing ? <Loader2 size={14} className="animate-spin" /> : <Minimize2 size={14} />}
-                        {isProcessing ? "Compressing…" : "Compress PDF"}
-                      </button>
-                      {compressResult && (
                         <button
                           type="button"
                           onClick={handleCompressDownload}
-                          className={`mt-2 w-full ${btnBase} justify-center bg-emerald-600 hover:bg-emerald-500 py-2.5`}
+                          className={`mt-3 w-full ${btnBase} justify-center bg-emerald-600 hover:bg-emerald-500 py-2.5`}
                         >
                           <Download size={14} />Download Compressed
                         </button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -1047,7 +1052,9 @@ function App() {
 
       {/* ── Toast ──────────────────────────────────────────────────────────── */}
       <div
-        className={`fixed bottom-5 right-5 z-50 max-w-xs rounded-xl border px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur-sm transition-all duration-300 ${
+        role="status"
+        onClick={() => { if (statusTimerRef.current) clearTimeout(statusTimerRef.current); setStatus(""); }}
+        className={`fixed bottom-5 right-5 z-50 max-w-xs cursor-pointer select-none rounded-xl border px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur-sm transition-all duration-300 ${
           status ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
         } ${
           status.startsWith("❌")
