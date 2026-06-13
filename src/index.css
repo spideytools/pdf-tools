@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #fff;
+  --border: #e5e4e7;
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  font: 16px/145% var(--sans);
+  letter-spacing: 0.16px;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme='dark'] {
+  --text: #9ca3af;
+  --text-h: #f3f4f6;
+  --bg: #020617;
+  --border: #2e303a;
+}
+
+:root[data-theme='light'] {
+  --text: #6b6375;
+  --text-h: #08060d;
+  --bg: #f1f5f9;
+  --border: #e5e4e7;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --text: #9ca3af;
+    --text-h: #f3f4f6;
+    --bg: #020617;
+    --border: #2e303a;
+  }
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  overflow-x: hidden;
+}
+
+.app-shell {
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.app-shell[data-theme='dark'] {
+  background:
+    radial-gradient(circle at top, rgba(239, 68, 68, 0.12), transparent 40%),
+    var(--bg);
+}
+
+.app-shell[data-theme='light'] {
+  background: var(--bg);
+}
