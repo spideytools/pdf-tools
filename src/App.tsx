@@ -1040,6 +1040,8 @@ function App() {
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div className={`mt-6 border-t pt-3 text-center text-xs ${darkMode ? "border-slate-800 text-slate-600" : "border-slate-200 text-slate-400"}`}>
           PDF Tools • v1.0.0 &nbsp;|&nbsp; All processing happens locally in your browser — no files are uploaded.
+          <br />
+          © {new Date().getFullYear()} PDF Tools. All rights reserved.
         </div>
       </div>
 
